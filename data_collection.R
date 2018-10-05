@@ -67,7 +67,7 @@ data = function(name){ # name = "ETH"
   
   # read in data
   file_name = paste(name,"_data.csv", sep = "")
-  df = read.csv(file_name)[2:5]
+  df = read.csv(file_name)[2:6]
   date = df[nrow(df),1] # last date in old data frame
   
   # add to df
