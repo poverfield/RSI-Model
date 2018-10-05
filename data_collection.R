@@ -1,7 +1,7 @@
 
 # set up directory on rasbperry
-dir = '/home/pi/Desktop/files'
-setwd(dir)
+#dir = '/home/pi/Desktop/files'
+#setwd(dir)
 
 name = c("ETH","XBT","XMR")
 # determine if data table already exists. if it does not write out a new table. if it does, do nothing. 
