@@ -3,7 +3,7 @@
 #dir = '/home/pi/Desktop/files'
 #setwd(dir)
 
-name = c("ETH","XBT","XMR")
+name = c("ETH","XBT","XMR","XRP","ETC","LTC")
 # determine if data table already exists. if it does not write out a new table. if it does, do nothing. 
 initiate = function(name){
   file_name = paste(name,"_data.csv", sep = "")
@@ -89,4 +89,5 @@ for(i in name){
   initiate(i)
   
   df = data(i)
+  print(dim(df)) # if NULL then there is no data table and no data was added
 }
