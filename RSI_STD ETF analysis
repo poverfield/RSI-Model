@@ -1,0 +1,382 @@
+# Financial Model
+# Program Design: Run analyst for each ETF and then repeat, all program is in one loop to limit data storage needs
+# at the end of each loop print out buy point and total return
+# Indicator: BB_RSI when sma_short>sma_long
+
+# TODO: Complete New trade function
+# TODO: Add sma criteria in RSI function - only buy when SMA_short > sma_long
+  
+import pandas as pd
+import numpy as np
+import quandl
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+# connect to quandl API
+quandl.ApiConfig.api_key = <Key goes here'
+start_date = '2010-01-01'
+end_date = '2018-01-01'
+
+
+
+
+
+# Next trade function
+# test values of opposing trade list (trade1) against current trade (trade2) and next trade of same tim (trade3)
+# Ex: for i in sell:
+    #if i > buy_now and i < buy_next:
+        # break
+    # return(i)
+def next_trade(trade1, trade2, trade3):
+    for i in trade1:
+        if i > trade2 and i < trade3:
+            break
+    return(i)
+
+
+# Take profit index function
+# returns index for when price reached take profit limit
+def take_profit_func(t_enter, t_exit, df, p_enter, take_profit):
+    # if take profit for buy signal
+    if t_enter in buy:
+        for i in range(t_enter + 1, t_exit):
+            if df.High[i] >= p_enter *(1+take_profit):
+                break
+    # if take profit for sell signal
+    else:
+        for i in range(t_enter + 1, t_exit):
+            if df.Low[i] <= p_enter *(1 + stop_loss):
+                break
+    return(i)
+
+# Stop loss index function
+# returns index for when price reached stop_loss limit
+def stop_loss_func(t_enter, t_exit, df, p_enter, stop_loss):
+    # if stop loss for buy signal
+    if t_enter in buy:
+        for i in range(t_enter+1, t_exit):
+            if df.Low[i] <= p_enter *(1 + stop_loss):
+                break
+
+    # if stop loss for sell signal
+    else:
+        for i in range(t_enter + 1, t_exit):
+            if df.High[i] >= p_enter *(1+take_profit):
+                break
+    return(i)
+            
+        
+
+# take profit/stop loss
+# t_enter = enter trade, t_exit = exit trade
+def tp_sl_func(t_enter, t_exit, df, stop_loss, take_profit):
+    p_enter = df.Open[t_enter+1] # enter price at Open day after signal
+    p_exit = df.Open[t_exit+1] # enter price at Open day after signal
+    # (final - initial)/initial
+    price_max = (np.amax(df.High[(t_enter+1):t_exit]))
+    price_min = (np.amin(df.Low[(t_enter+1):t_exit]))
+    p_max = (price_max - p_enter)/p_enter # max percentage gain between enter and exit
+    p_min = (price_min - p_enter)/p_enter # min percentage loss between enter and exit
+
+
+    #if either take profit or stop loss met get index of first
+    if p_max > take_profit or p_min < stop_loss:
+
+        # if only take profit
+        if p_max > take_profit and not p_min < stop_loss:
+            # take profit function
+            exit_id = take_profit_func(t_enter, t_exit, df, p_enter, take_profit)
+            percent_return = take_profit
+            trade_type = 2
+
+    
+         # if only stop loss
+        if not p_max > take_profit and p_min < stop_loss:
+            # stop loss function
+            exit_id = stop_loss_func(t_enter, t_exit, df, p_enter, stop_loss)
+            percent_return = - stop_loss
+            trade_type = -2
+                 
+        # if both take profit and stop loss
+        if p_max > take_profit and p_min < stop_loss:
+            # which limit came first
+            tp_exit_id = take_profit_func(t_enter, t_exit, df, p_enter, take_profit) #take profit id
+            sl_exit_id = stop_loss_func(t_enter, t_exit, df, p_enter, stop_loss) # stop loss id
+
+            # stop loss
+            if tp_exit_id >= sl_exit_id:
+                exit_id = sl_exit_id # exit id is whichever comes first
+                percent_return = stop_loss
+                trade_type = -2
+
+            # Take profit
+            else:
+                 exit_id = tp_exit_id
+                 percent_return = take_profit
+                 trade_type = 2
+
+    # No limit is reached
+    else:
+        # enter trade is the same as exit trade
+        if t_enter in buy and t_exit in buy or t_enter in sell and t_exit in sell:
+            # exit is same as enter. Do nothing
+            exit_id = 0
+            trade_type = 0
+            percent_return = 0
+                             
+        # if buy and then sell
+        if t_enter in buy and t_exit in sell:
+            exit_id = t_exit + 1
+            trade_type = -1
+            percent_return = (p_exit - p_enter)/p_enter # (final - initial)/initial
+            
+        # if sell and then buy
+        if t_enter in sell and t_exit in buy:
+            exit_id = t_exit + 1
+            trade_type = 1
+            percent_return = (p_exit - p_enter)/p_enter # (final - initial)/initial           
+
+
+    # return list[price, trade type, index]
+    percent_and_id = []
+    percent_and_id.append(exit_id)
+    percent_and_id.append(trade_type) 
+    percent_and_id.append(percent_return)
+    return(percent_and_id)
+
+
+            
+        
+# Trade function
+# structure: after each run remove whatever buy and sell signal used
+def trade_func(df, buy, sell, take_profit, stop_loss):
+    # Trade key: buy = 1, take profit = 2, sell = -1, stop loss = -2
+    df['Trade'] = df.Close*0
+    df['Return'] = df.Close*0
+
+    while len(buy) > 1 and len(sell) > 1: # Run if more trades left
+        # Buy = enter trade
+        if buy[0] < sell[0]:
+            t_enter = buy[0]
+            df.Trade[t_enter+1] = 1 # assign trade value in df
+            if buy[1] > sell[0]:
+                t_exit = sell[0] # exit trade = next sell
+            else:
+                t_exit = buy[1] # exit trade = next buy
+            buy = buy[1:] # remove trade for next loop
+
+        # Sell = enter trade
+        else:
+            t_enter = sell[0]
+            df.Trade[t_enter+1] = -1 # assign trade value in df
+            
+            if sell[1] > buy[0]:
+                t_exit = buy[0]
+            else:
+                t_exit = sell[1]
+            sell = sell[1:] # remove trade for next loop
+
+
+
+
+        # Result: enter trade and exit trade
+        #Tailor tp_sl function to take in t_enter and t_exit and return if trade has reached price limit
+        t_return = tp_sl_func(t_enter, t_exit, df, stop_loss, take_profit)
+        df.Trade[t_return[0]] = t_return[1]
+        df.Return[t_return[0]] = t_return[2]
+
+    return(df)
+    
+    
+
+
+def RSI_func(df, period_end):
+#Calculate RSI
+    period_start = 0
+    # period end is length of RSI window
+    delta = df.Close.diff().dropna() #get daily Close price difference and remove first na
+    abs_delta = abs(delta*0)
+    gain = abs(delta*0)
+    loss = abs(delta*0)
+    rs_l = abs(delta*0)
+    rs_g = abs(delta*0)
+    rs = abs(delta*0)
+    rsi = abs(delta*0)
+    rsi_std_low = abs(delta*0)
+    rsi_std_high = abs(delta*0)
+    rsi_mean = abs(delta*0)
+
+    gain[delta > 0] = delta[delta > 0]
+    loss[delta < 0] = abs(delta[delta < 0])
+    #gain[gain.index[period-1]] = np.mean(gain[:period])
+    gain_old = gain    
+    
+
+
+    while period_end <= len(gain):
+        rs_l[rs_l.index[period_end-1]] = np.mean(loss[period_start:period_end])
+        rs_g[rs_g.index[period_end-1]] = np.mean(gain[period_start:period_end]) #caluclate RS_G
+
+        period_start += 1
+        period_end += 1
+
+    period_start = 0
+    period_end= 14
+    while period_end <= len(loss):
+        rs_g[rs_g.index[period_end-1]] = np.mean(gain[period_start:period_end]) #caluclate RS_G
+
+        #calculate RS -> RS_Gain/RS_Loss
+        
+        rs[period_end-1] = rs_g[period_end-1]/rs_l[period_end-1]
+
+        #RSI -> 100 - 100/(1+rs)
+        rsi[period_end -1] = 100 - 100/(1+rs[period_end-1])
+        rsi_mean[period_end -1] = np.mean(rsi[period_start:period_end])
+        rsi_std_high[period_end -1] = 2*rsi[period_start:period_end].std() + rsi_mean[period_end-1]
+        rsi_std_low[period_end -1] = -2*rsi[period_start:period_end].std() + rsi_mean[period_end -1]
+        
+        period_start += 1
+        period_end += 1
+
+    #Buy when RSI breaks the Stand dev bands
+    buy = []
+    sell = []
+
+    for i in range(1, len(rsi)-1):
+        # buy at index + 1 when rsi breaks below rsi_std_low price
+        if rsi[i-1] < rsi_std_low[i-1] and rsi[i] > rsi_std_low[i]: 
+            buy.append(i+1)
+
+        # sell at index + 1 when rsi breaks above and below rsi_std_high
+        if rsi[i-1] > rsi_std_high[i-1] and rsi[i] < rsi_std_high[i]:
+            sell.append(i+1)
+
+    #return list of buy and sell values
+    signal = []
+    signal.append(buy)
+    signal.append(sell)
+    return(signal)
+    
+
+
+#SMA Function
+def sma_func(close, sma_short, sma_long):
+    sma = df*0
+    sma = sma.drop(['Open','High', 'Trade', 'Return'], axis = 1)
+    sma.columns = ['SMA_short','SMA_long']
+    short_df = sma['SMA_short']
+    long_df = sma['SMA_long']
+    n_start = 0
+    n_short = sma_short
+    n_long = sma_long
+    for i in range(0,len(short_df)-1):
+        if n_long <= len(sma):
+            long_df[n_long-1] = np.mean(df.Close[n_start:n_long])
+        if n_short <= len(sma):
+            short_df[n_short-1] = np.mean(df.Close[n_start:n_short])
+            
+        n_start += 1
+        n_short += 1
+        n_long += 1
+
+
+        
+    sma['SMA_short'] = short_df
+    sma['SMA_long'] = long_df
+    return(sma)
+    
+       
+    
+    
+
+
+#Plot RSI function
+def rsi_plot(rsi, rsi_std_low, rsi_std_high, buy):
+    plt.plot(rsi)
+    plt.plot(rsi_std_low)
+    plt.plot(rsi_std_high)
+    for i in buy:
+        plt.axvline(x = df.Close.index[i])
+    return(plt.show())
+           
+
+# Plot Close Price function
+def close_plot(close, buy, sell, sma):
+    plt.plot(df.Close)
+    plt.plot(sma['SMA_short'])
+    plt.plot(sma['SMA_long'])
+    for i in buy:
+        plt.axvline(x = df.Close.index[i])
+        mpl.rcParams['lines.color'] = 'g'
+    for i in sell:
+        plt.axvline(x = df.Close.index[i])
+        mpl.rcParams['lines.color'] = 'r'
+    return(plt.show())
+
+
+#close_plot(df.Close, buy, sell, sma)
+#rsi_plot(rsi, rsi_std_low, rsi_std_high, buy)
+
+
+
+###########
+# Analyze Stocks
+###########
+
+# Variables
+take_profit = .05
+stop_loss = -.05
+rsi_window = 14
+
+#list of ETFs to analyze
+etf = ['AAPL', 'GOOG', 'AMZN', 'MSFT', 'ARNC', 'CBS', 'TMUS']
+
+# empty data frame to store perc return
+return_df = pd.DataFrame({etf[0]: []})
+
+
+# Query Data
+for i in etf:
+    # Clean symbol to retrieve data
+    etf_string = 'WIKI/' + i
+    df = quandl.get(etf_string, start_date = start_date)
+    df = df[['Adj. Open', 'Adj. High', 'Adj. Low', 'Adj. Close']] # get adjusted price column
+    df.columns = ['Open','High','Low','Close'] # assign new names to columns for easier use
+    print(etf_string)
+
+    #Get RSI buy/sell signals
+    signals = RSI_func(df, rsi_window)
+    buy = signals[0]
+    sell = signals[1]
+
+    # add trades and percent return to df
+    df_return = trade_func(df, buy, sell, take_profit, stop_loss)
+
+    # Get total return 
+    return_df[i] = [df_return.Return.sum()] # add column in ag_df
+    #net_return = df_return.Return.sum()
+
+    
+
+
+
+# Create sma data frame
+sma = sma_func(df.Close, 20,50)
+
+
+
+
+
+# Return data to analyze
+sell = sell[3:]
+a = trade_func(df, buy, sell, take_profit, stop_loss)
+b = a.Trade
+d = a[b != 0]
+print(d.High.head(15))
+print(d.Low.head(15))
+print(d.Close.head(15))
+print(d.Trade.head(15))
+print(d.Return.head(15))
+print(buy)
+print(sell)
+close_plot(df.Close, buy, sell, sma)
